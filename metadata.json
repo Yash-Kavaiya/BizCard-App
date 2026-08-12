@@ -1,0 +1,6 @@
+{
+  "name": "BizCard AI",
+  "description": "AI business card scanner & NFC tap lead manager with Gemini extraction, auto-connect, and CRM dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
