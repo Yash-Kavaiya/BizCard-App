@@ -2,6 +2,7 @@ package com.example.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.BuildConfig
 import com.example.data.model.CrmConfig
 import com.example.data.model.PersonalCard
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,6 +13,11 @@ class UserPreferences(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("user_card_prefs", Context.MODE_PRIVATE)
 
+    // Holds API tokens; excluded from backups in backup_rules.xml / data_extraction_rules.xml.
+    private val crmPrefs: SharedPreferences = context.getSharedPreferences("crm_integrations", Context.MODE_PRIVATE)
+
+    private val defaultCard = if (BuildConfig.DEBUG) PersonalCard.SAMPLE else PersonalCard()
+
     private val _personalCardFlow = MutableStateFlow(getPersonalCard())
     val personalCardFlow: StateFlow<PersonalCard> = _personalCardFlow.asStateFlow()
 
@@ -19,16 +25,17 @@ class UserPreferences(context: Context) {
     val crmConfigFlow: StateFlow<CrmConfig> = _crmConfigFlow.asStateFlow()
 
     fun getPersonalCard(): PersonalCard {
+        val d = defaultCard
         return PersonalCard(
-            name = prefs.getString("name", "Alex Morgan") ?: "Alex Morgan",
-            title = prefs.getString("title", "VP of Business Development") ?: "VP of Business Development",
-            company = prefs.getString("company", "Apex Innovations Inc.") ?: "Apex Innovations Inc.",
-            email = prefs.getString("email", "alex.morgan@apexinnovations.com") ?: "alex.morgan@apexinnovations.com",
-            phone = prefs.getString("phone", "+1 (555) 234-5678") ?: "+1 (555) 234-5678",
-            website = prefs.getString("website", "https://apexinnovations.com") ?: "https://apexinnovations.com",
-            linkedIn = prefs.getString("linkedIn", "linkedin.com/in/alexmorgan-biz") ?: "linkedin.com/in/alexmorgan-biz",
-            address = prefs.getString("address", "742 Evergreen Terrace, San Francisco, CA") ?: "742 Evergreen Terrace, San Francisco, CA",
-            bio = prefs.getString("bio", "Building strategic enterprise partnerships & AI integrations.") ?: "Building strategic enterprise partnerships & AI integrations."
+            name = prefs.getString("name", d.name) ?: d.name,
+            title = prefs.getString("title", d.title) ?: d.title,
+            company = prefs.getString("company", d.company) ?: d.company,
+            email = prefs.getString("email", d.email) ?: d.email,
+            phone = prefs.getString("phone", d.phone) ?: d.phone,
+            website = prefs.getString("website", d.website) ?: d.website,
+            linkedIn = prefs.getString("linkedIn", d.linkedIn) ?: d.linkedIn,
+            address = prefs.getString("address", d.address) ?: d.address,
+            bio = prefs.getString("bio", d.bio) ?: d.bio
         )
     }
 
@@ -50,22 +57,24 @@ class UserPreferences(context: Context) {
 
     fun getCrmConfig(): CrmConfig {
         return CrmConfig(
-            googleSheetsWebhookUrl = prefs.getString("gs_webhook_url", "") ?: "",
-            hubspotApiKey = prefs.getString("hubspot_api_key", "") ?: "",
-            salesforceApiKey = prefs.getString("salesforce_api_key", "") ?: "",
-            zohoApiKey = prefs.getString("zoho_api_key", "") ?: "",
-            customWebhookUrl = prefs.getString("custom_webhook_url", "") ?: "",
-            customWebhookAuthHeader = prefs.getString("custom_auth_header", "Authorization") ?: "Authorization",
-            customWebhookApiKey = prefs.getString("custom_api_key", "") ?: "",
-            autoExportEnabled = prefs.getBoolean("auto_export_enabled", false)
+            googleSheetsWebhookUrl = crmPrefs.getString("gs_webhook_url", "") ?: "",
+            hubspotApiKey = crmPrefs.getString("hubspot_api_key", "") ?: "",
+            salesforceApiKey = crmPrefs.getString("salesforce_api_key", "") ?: "",
+            salesforceInstanceUrl = crmPrefs.getString("salesforce_instance_url", "") ?: "",
+            zohoApiKey = crmPrefs.getString("zoho_api_key", "") ?: "",
+            customWebhookUrl = crmPrefs.getString("custom_webhook_url", "") ?: "",
+            customWebhookAuthHeader = crmPrefs.getString("custom_auth_header", "Authorization") ?: "Authorization",
+            customWebhookApiKey = crmPrefs.getString("custom_api_key", "") ?: "",
+            autoExportEnabled = crmPrefs.getBoolean("auto_export_enabled", false)
         )
     }
 
     fun saveCrmConfig(config: CrmConfig) {
-        prefs.edit()
+        crmPrefs.edit()
             .putString("gs_webhook_url", config.googleSheetsWebhookUrl)
             .putString("hubspot_api_key", config.hubspotApiKey)
             .putString("salesforce_api_key", config.salesforceApiKey)
+            .putString("salesforce_instance_url", config.salesforceInstanceUrl)
             .putString("zoho_api_key", config.zohoApiKey)
             .putString("custom_webhook_url", config.customWebhookUrl)
             .putString("custom_auth_header", config.customWebhookAuthHeader)

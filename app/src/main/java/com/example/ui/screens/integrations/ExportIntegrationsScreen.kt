@@ -7,17 +7,21 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -68,10 +72,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.CrmConfig
+import com.example.util.ExportCrmService
 import com.example.util.GoogleAppsScriptTemplate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,6 +98,7 @@ fun ExportIntegrationsScreen(
     var gsUrl by remember(uiState.crmConfig) { mutableStateOf(uiState.crmConfig.googleSheetsWebhookUrl) }
     var hubspotKey by remember(uiState.crmConfig) { mutableStateOf(uiState.crmConfig.hubspotApiKey) }
     var salesforceKey by remember(uiState.crmConfig) { mutableStateOf(uiState.crmConfig.salesforceApiKey) }
+    var salesforceUrl by remember(uiState.crmConfig) { mutableStateOf(uiState.crmConfig.salesforceInstanceUrl) }
     var zohoKey by remember(uiState.crmConfig) { mutableStateOf(uiState.crmConfig.zohoApiKey) }
     var customUrl by remember(uiState.crmConfig) { mutableStateOf(uiState.crmConfig.customWebhookUrl) }
     var customHeader by remember(uiState.crmConfig) { mutableStateOf(uiState.crmConfig.customWebhookAuthHeader) }
@@ -122,6 +130,7 @@ fun ExportIntegrationsScreen(
                                 googleSheetsWebhookUrl = gsUrl,
                                 hubspotApiKey = hubspotKey,
                                 salesforceApiKey = salesforceKey,
+                                salesforceInstanceUrl = salesforceUrl,
                                 zohoApiKey = zohoKey,
                                 customWebhookUrl = customUrl,
                                 customWebhookAuthHeader = customHeader,
@@ -147,6 +156,7 @@ fun ExportIntegrationsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .consumeWindowInsets(paddingValues)
         ) {
             // Tab Header Bar
             TabRow(
@@ -176,6 +186,7 @@ fun ExportIntegrationsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .imePadding()
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -336,12 +347,31 @@ fun ExportIntegrationsScreen(
                                 apiKeyValue = salesforceKey,
                                 onApiKeyChange = { salesforceKey = it },
                                 onTestConnection = {
-                                    viewModel.updateCrmConfig(uiState.crmConfig.copy(salesforceApiKey = salesforceKey))
-                                    Toast.makeText(context, "Salesforce token saved!", Toast.LENGTH_SHORT).show()
+                                    viewModel.updateCrmConfig(
+                                        uiState.crmConfig.copy(
+                                            salesforceApiKey = salesforceKey,
+                                            salesforceInstanceUrl = salesforceUrl
+                                        )
+                                    )
+                                    Toast.makeText(context, "Salesforce settings saved!", Toast.LENGTH_SHORT).show()
                                 },
                                 isTesting = false,
-                                brandColor = Color(0xFF00A1E0)
-                            )
+                                brandColor = Color(0xFF00A1E0),
+                                canSubmit = ExportCrmService.salesforceLeadEndpoint(salesforceUrl) != null
+                            ) {
+                                OutlinedTextField(
+                                    value = salesforceUrl,
+                                    onValueChange = { salesforceUrl = it },
+                                    label = { Text("Instance URL (https://yourcompany.my.salesforce.com)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    isError = salesforceUrl.isNotBlank() &&
+                                        ExportCrmService.salesforceLeadEndpoint(salesforceUrl) == null,
+                                    leadingIcon = { Icon(imageVector = Icons.Default.Link, contentDescription = null) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            }
 
                             // Zoho CRM Card
                             CrmIntegrationCard(
@@ -555,7 +585,9 @@ fun CrmIntegrationCard(
     onApiKeyChange: (String) -> Unit,
     onTestConnection: () -> Unit,
     isTesting: Boolean,
-    brandColor: Color
+    brandColor: Color,
+    canSubmit: Boolean = true,
+    extraFields: @Composable ColumnScope.() -> Unit = {}
 ) {
     val cardShape = RoundedCornerShape(22.dp)
     Card(
@@ -579,6 +611,8 @@ fun CrmIntegrationCard(
 
             Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
+            extraFields()
+
             OutlinedTextField(
                 value = apiKeyValue,
                 onValueChange = onApiKeyChange,
@@ -586,6 +620,8 @@ fun CrmIntegrationCard(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = { Icon(imageVector = Icons.Default.Key, contentDescription = null) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 shape = RoundedCornerShape(12.dp)
             )
 
@@ -597,7 +633,7 @@ fun CrmIntegrationCard(
                     onClick = onTestConnection,
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = brandColor),
-                    enabled = !isTesting && apiKeyValue.isNotBlank()
+                    enabled = !isTesting && apiKeyValue.isNotBlank() && canSubmit
                 ) {
                     if (isTesting) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White)

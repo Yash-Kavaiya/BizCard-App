@@ -9,6 +9,8 @@ import com.example.data.local.LeadEntity
 import com.example.data.model.CrmConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -204,14 +206,15 @@ object ExportCrmService {
                     .post(requestBody)
                     .build()
 
-                val response = httpClient.newCall(request).execute()
-                val code = response.code
-                val responseStr = response.body?.string() ?: ""
+                httpClient.newCall(request).execute().use { response ->
+                    val code = response.code
+                    val responseStr = response.body?.string() ?: ""
 
-                if (response.isSuccessful || code == 302 || code == 200) {
-                    Result.success("Exported ${leads.size} lead(s) to Google Sheets successfully!")
-                } else {
-                    Result.failure(Exception("HTTP $code: ${responseStr.take(150)}"))
+                    if (response.isSuccessful || code == 302 || code == 200) {
+                        Result.success("Exported ${leads.size} lead(s) to Google Sheets successfully!")
+                    } else {
+                        Result.failure(Exception("HTTP $code: ${responseStr.take(150)}"))
+                    }
                 }
             } catch (e: Exception) {
                 Result.failure(e)
@@ -257,15 +260,16 @@ object ExportCrmService {
                     .post(requestBody)
                     .build()
 
-                val response = httpClient.newCall(request).execute()
-                val responseStr = response.body?.string() ?: ""
+                httpClient.newCall(request).execute().use { response ->
+                    val responseStr = response.body?.string() ?: ""
 
-                if (response.isSuccessful || response.code == 201) {
-                    Result.success("Lead '${lead.fullName}' created in HubSpot CRM!")
-                } else if (response.code == 409) {
-                    Result.success("Lead '${lead.fullName}' already exists in HubSpot CRM.")
-                } else {
-                    Result.failure(Exception("HubSpot Error ${response.code}: ${responseStr.take(120)}"))
+                    if (response.isSuccessful || response.code == 201) {
+                        Result.success("Lead '${lead.fullName}' created in HubSpot CRM!")
+                    } else if (response.code == 409) {
+                        Result.success("Lead '${lead.fullName}' already exists in HubSpot CRM.")
+                    } else {
+                        Result.failure(Exception("HubSpot Error ${response.code}: ${responseStr.take(120)}"))
+                    }
                 }
             } catch (e: Exception) {
                 Result.failure(e)
@@ -277,11 +281,35 @@ object ExportCrmService {
     // 4. SALESFORCE & ZOHO CRM INTEGRATION
     // -------------------------------------------------------------
 
-    suspend fun pushToSalesforce(apiKey: String, lead: LeadEntity): Result<String> {
+    private const val SALESFORCE_API_VERSION = "v58.0"
+
+    /**
+     * Salesforce only serves the REST API from the org's own My Domain host
+     * (e.g. https://acme.my.salesforce.com), so the endpoint must be built from the user's
+     * instance URL. Returns null for anything that is not a valid HTTPS URL.
+     */
+    internal fun salesforceLeadEndpoint(instanceUrl: String): HttpUrl? {
+        val trimmed = instanceUrl.trim().trimEnd('/')
+        if (trimmed.isEmpty()) return null
+        val base = (if ("://" in trimmed) trimmed else "https://$trimmed").toHttpUrlOrNull()
+            ?: return null
+        if (!base.isHttps) return null
+        return base.newBuilder()
+            .encodedPath("/services/data/$SALESFORCE_API_VERSION/sobjects/Lead")
+            .query(null)
+            .fragment(null)
+            .build()
+    }
+
+    suspend fun pushToSalesforce(instanceUrl: String, apiKey: String, lead: LeadEntity): Result<String> {
         return withContext(Dispatchers.IO) {
             if (apiKey.isBlank()) {
                 return@withContext Result.failure(Exception("Salesforce API Token is missing."))
             }
+            val endpoint = salesforceLeadEndpoint(instanceUrl)
+                ?: return@withContext Result.failure(
+                    Exception("Salesforce instance URL is missing or invalid (e.g. https://yourcompany.my.salesforce.com).")
+                )
 
             try {
                 val nameParts = lead.fullName.trim().split(" ", limit = 2)
@@ -302,16 +330,17 @@ object ExportCrmService {
 
                 val requestBody = json.toString().toRequestBody(JSON_MEDIA_TYPE)
                 val request = Request.Builder()
-                    .url("https://salesforce.com/services/data/v58.0/sobjects/Lead")
+                    .url(endpoint)
                     .addHeader("Authorization", "Bearer ${apiKey.trim()}")
                     .post(requestBody)
                     .build()
 
-                val response = httpClient.newCall(request).execute()
-                if (response.isSuccessful || response.code == 201) {
-                    Result.success("Lead '${lead.fullName}' synced to Salesforce!")
-                } else {
-                    Result.failure(Exception("Salesforce HTTP ${response.code}: ${response.body?.string()?.take(100)}"))
+                httpClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful || response.code == 201) {
+                        Result.success("Lead '${lead.fullName}' synced to Salesforce!")
+                    } else {
+                        Result.failure(Exception("Salesforce HTTP ${response.code}: ${response.body?.string()?.take(100)}"))
+                    }
                 }
             } catch (e: Exception) {
                 Result.failure(e)
@@ -351,11 +380,12 @@ object ExportCrmService {
                     .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
                     .build()
 
-                val response = httpClient.newCall(request).execute()
-                if (response.isSuccessful) {
-                    Result.success("Lead '${lead.fullName}' synced to Zoho CRM!")
-                } else {
-                    Result.failure(Exception("Zoho HTTP ${response.code}: ${response.body?.string()?.take(100)}"))
+                httpClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        Result.success("Lead '${lead.fullName}' synced to Zoho CRM!")
+                    } else {
+                        Result.failure(Exception("Zoho HTTP ${response.code}: ${response.body?.string()?.take(100)}"))
+                    }
                 }
             } catch (e: Exception) {
                 Result.failure(e)
@@ -414,12 +444,13 @@ object ExportCrmService {
                     builder.addHeader(headerName, headerVal)
                 }
 
-                val response = httpClient.newCall(builder.build()).execute()
-                val code = response.code
-                if (response.isSuccessful || code == 200 || code == 201) {
-                    Result.success("Pushed ${leads.size} lead(s) to Custom Webhook!")
-                } else {
-                    Result.failure(Exception("Webhook HTTP $code: ${response.body?.string()?.take(100)}"))
+                httpClient.newCall(builder.build()).execute().use { response ->
+                    val code = response.code
+                    if (response.isSuccessful || code == 200 || code == 201) {
+                        Result.success("Pushed ${leads.size} lead(s) to Custom Webhook!")
+                    } else {
+                        Result.failure(Exception("Webhook HTTP $code: ${response.body?.string()?.take(100)}"))
+                    }
                 }
             } catch (e: Exception) {
                 Result.failure(e)
@@ -441,7 +472,7 @@ object ExportCrmService {
             results.add(pushToHubSpot(config.hubspotApiKey, lead))
         }
         if (config.salesforceApiKey.isNotBlank()) {
-            results.add(pushToSalesforce(config.salesforceApiKey, lead))
+            results.add(pushToSalesforce(config.salesforceInstanceUrl, config.salesforceApiKey, lead))
         }
         if (config.zohoApiKey.isNotBlank()) {
             results.add(pushToZoho(config.zohoApiKey, lead))

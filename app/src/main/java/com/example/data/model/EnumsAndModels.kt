@@ -47,18 +47,34 @@ data class ExtractedCardData(
 )
 
 data class PersonalCard(
-    val name: String = "Alex Morgan",
-    val title: String = "VP of Business Development",
-    val company: String = "Apex Innovations Inc.",
-    val email: String = "alex.morgan@apexinnovations.com",
-    val phone: String = "+1 (555) 234-5678",
-    val website: String = "https://apexinnovations.com",
-    val linkedIn: String = "linkedin.com/in/alexmorgan-biz",
-    val address: String = "742 Evergreen Terrace, San Francisco, CA",
-    val bio: String = "Building strategic enterprise partnerships & AI integrations.",
+    val name: String = "",
+    val title: String = "",
+    val company: String = "",
+    val email: String = "",
+    val phone: String = "",
+    val website: String = "",
+    val linkedIn: String = "",
+    val address: String = "",
+    val bio: String = "",
     val qrPayload: String = ""
-)
+) {
+    companion object {
+        /** Demo identity pre-filled in debug builds only. */
+        val SAMPLE = PersonalCard(
+            name = "Alex Morgan",
+            title = "VP of Business Development",
+            company = "Apex Innovations Inc.",
+            email = "alex.morgan@apexinnovations.com",
+            phone = "+1 (555) 234-5678",
+            website = "https://apexinnovations.com",
+            linkedIn = "linkedin.com/in/alexmorgan-biz",
+            address = "742 Evergreen Terrace, San Francisco, CA",
+            bio = "Building strategic enterprise partnerships & AI integrations."
+        )
+    }
+}
 
+@JsonClass(generateAdapter = true)
 data class AiCrmInsights(
     val summary: String = "",
     val highPriorityFollowUps: List<String> = emptyList(),

@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.font.FontWeight
@@ -76,7 +78,10 @@ fun MainScreen(
     // Hide bottom bar on detail and add/edit screens
     val showBottomBar = items.any { it.route == currentRoute }
 
+    // Each destination has its own Scaffold + TopAppBar that handles the status bar, so this
+    // outer Scaffold only reserves space for the bottom NavigationBar.
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(
@@ -125,7 +130,9 @@ fun MainScreen(
         NavHost(
             navController = navController,
             startDestination = Screen.Dashboard.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
         ) {
             composable(Screen.Dashboard.route) {
                 DashboardScreen(

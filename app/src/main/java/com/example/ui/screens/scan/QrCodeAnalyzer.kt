@@ -36,7 +36,8 @@ class QrCodeAnalyzer(
 
         val mediaImage = imageProxy.image
         if (mediaImage != null) {
-            val buffer: ByteBuffer = mediaImage.planes[0].buffer
+            val yPlane = mediaImage.planes[0]
+            val buffer: ByteBuffer = yPlane.buffer
             val data = ByteArray(buffer.remaining())
             buffer.get(data)
 
@@ -44,9 +45,10 @@ class QrCodeAnalyzer(
             val height = imageProxy.height
 
             try {
+                // Rows may be padded beyond the visible width, so the source is rowStride wide.
                 val source = PlanarYUVLuminanceSource(
                     data,
-                    width,
+                    yPlane.rowStride,
                     height,
                     0,
                     0,

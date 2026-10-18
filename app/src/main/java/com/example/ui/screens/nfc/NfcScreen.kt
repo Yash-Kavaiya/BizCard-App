@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.BuildConfig
 import com.example.ui.components.ContactActionRow
 import com.example.ui.components.SourceBadge
 import com.example.ui.components.StatusBadge
@@ -270,16 +271,18 @@ fun NfcScreen(
             }
 
             // Simulator Trigger Button for Instant Verification without Physical NFC Tag
-            OutlinedButton(
-                onClick = { viewModel.simulateNfcTap() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("simulate_nfc_tap_button"),
-                shape = CircleShape
-            ) {
-                Icon(imageVector = Icons.Default.Nfc, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Simulate NFC Tag Tap (Test)", fontWeight = FontWeight.SemiBold)
+            if (BuildConfig.DEBUG) {
+                OutlinedButton(
+                    onClick = { viewModel.simulateNfcTap() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("simulate_nfc_tap_button"),
+                    shape = CircleShape
+                ) {
+                    Icon(imageVector = Icons.Default.Nfc, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Simulate NFC Tag Tap (Test)", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }

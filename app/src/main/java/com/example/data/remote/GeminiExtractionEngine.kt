@@ -3,19 +3,26 @@ package com.example.data.remote
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
+import android.util.Log
 import com.example.data.local.LeadEntity
 import com.example.data.model.AiCrmInsights
 import com.example.data.model.ExtractedCardData
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.util.regex.Pattern
+import kotlin.math.max
 
 class GeminiExtractionEngine(private val context: Context) {
 
-    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    private companion object {
+        const val TAG = "GeminiExtraction"
+        const val MAX_IMAGE_EDGE_PX = 1600
+    }
+
+    private val moshi = Moshi.Builder().build()
     private val extractedCardAdapter = moshi.adapter(ExtractedCardData::class.java)
 
     suspend fun extractCardDataFromImage(
@@ -71,7 +78,7 @@ class GeminiExtractionEngine(private val context: Context) {
                 )
             )
 
-            val response = GeminiClient.service.generateContent(apiKey, request)
+            val response = GeminiClient.service(context).generateContent(request)
             val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
 
             if (!jsonText.isNullByBlank()) {
@@ -81,8 +88,10 @@ class GeminiExtractionEngine(private val context: Context) {
                     return@withContext parsed
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "Card extraction failed, falling back to local parsing", e)
         }
 
         // Fallback to offline Regex OCR parsing
@@ -121,7 +130,7 @@ class GeminiExtractionEngine(private val context: Context) {
                 generationConfig = GenerationConfig(responseMimeType = "application/json", temperature = 0.4f)
             )
 
-            val response = GeminiClient.service.generateContent(apiKey, request)
+            val response = GeminiClient.service(context).generateContent(request)
             val jsonText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
 
             if (!jsonText.isNullByBlank()) {
@@ -130,8 +139,10 @@ class GeminiExtractionEngine(private val context: Context) {
                 val parsed = adapter.fromJson(cleanedJson)
                 if (parsed != null) return@withContext parsed
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "CRM insights generation failed, using local summary", e)
         }
 
         generateFallbackInsights(leads)
@@ -244,8 +255,16 @@ class GeminiExtractionEngine(private val context: Context) {
     }
 
     private fun Bitmap.toBase64(): String {
+        val longestEdge = max(width, height)
+        val scaled = if (longestEdge > MAX_IMAGE_EDGE_PX) {
+            val ratio = MAX_IMAGE_EDGE_PX.toFloat() / longestEdge
+            Bitmap.createScaledBitmap(this, (width * ratio).toInt(), (height * ratio).toInt(), true)
+        } else {
+            this
+        }
         val outputStream = ByteArrayOutputStream()
-        compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+        scaled.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+        if (scaled !== this) scaled.recycle()
         return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
     }
 

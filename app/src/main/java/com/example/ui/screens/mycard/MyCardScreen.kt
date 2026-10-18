@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -107,6 +109,8 @@ fun MyCardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .consumeWindowInsets(paddingValues)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -191,7 +195,7 @@ fun MyCardScreen(
                     onClick = {
                         ContactsHelper.shareText(
                             context,
-                            "Share ${currentCard.name}'s vCard",
+                            currentCard.name.ifBlank { null }?.let { "Share $it's vCard" } ?: "Share vCard",
                             state.vCardPayload
                         )
                     },

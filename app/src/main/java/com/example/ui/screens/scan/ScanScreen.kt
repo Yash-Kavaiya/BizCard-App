@@ -1,6 +1,7 @@
 package com.example.ui.screens.scan
 
 import android.graphics.Bitmap
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -71,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.BuildConfig
 import com.example.data.model.ExtractedCardData
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -86,6 +89,8 @@ fun ScanScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    val imageCapture = remember { createCardImageCapture() }
 
     Scaffold(
         topBar = {
@@ -134,11 +139,7 @@ fun ScanScreen(
             if (cameraPermissionState.status.isGranted) {
                 // Live Camera View with CameraX ImageAnalysis for QR code
                 CameraPreview(
-                    onImageCaptured = { bitmap ->
-                        if (state.scanMode == ScanMode.CARD_OCR) {
-                            viewModel.processCardImage(bitmap)
-                        }
-                    },
+                    imageCapture = imageCapture,
                     onQrCodeScanned = if (state.scanMode == ScanMode.QR_CODE) {
                         { qrText -> viewModel.processQrCode(qrText) }
                     } else null
@@ -315,7 +316,13 @@ fun ScanScreen(
                     modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    if (state.scanMode == ScanMode.QR_CODE) {
+                    if (state.scanMode == ScanMode.QR_CODE && !BuildConfig.DEBUG) {
+                        Text(
+                            text = "Point the camera at a QR code or vCard. It scans automatically.",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (state.scanMode == ScanMode.QR_CODE) {
                         Text(
                             text = "Live CameraX scanning active. Or test sample QR payloads:",
                             style = MaterialTheme.typography.labelMedium,
@@ -381,7 +388,11 @@ fun ScanScreen(
                         }
                     } else {
                         Text(
-                            text = "Align card inside frame or test with pre-built cards:",
+                            text = if (BuildConfig.DEBUG) {
+                                "Align card inside frame or test with pre-built cards:"
+                            } else {
+                                "Align the card inside the frame, then tap capture."
+                            },
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -389,40 +400,52 @@ fun ScanScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    val (bitmap, text) = SampleCards.generateTechCardBitmap()
-                                    viewModel.processCardImage(bitmap, text)
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("scan_sample_tech_card_button"),
-                                shape = CircleShape
-                            ) {
-                                Text("Tech Card", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            }
+                            if (BuildConfig.DEBUG) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val (bitmap, text) = SampleCards.generateTechCardBitmap()
+                                        viewModel.processCardImage(bitmap, text)
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("scan_sample_tech_card_button"),
+                                    shape = CircleShape
+                                ) {
+                                    Text("Tech Card", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
 
-                            OutlinedButton(
-                                onClick = {
-                                    val (bitmap, text) = SampleCards.generateGujaratiCardBitmap()
-                                    viewModel.processCardImage(bitmap, text)
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("scan_sample_gujarati_card_button"),
-                                shape = CircleShape
-                            ) {
-                                Text("Gujarati Card", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                OutlinedButton(
+                                    onClick = {
+                                        val (bitmap, text) = SampleCards.generateGujaratiCardBitmap()
+                                        viewModel.processCardImage(bitmap, text)
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("scan_sample_gujarati_card_button"),
+                                    shape = CircleShape
+                                ) {
+                                    Text("Gujarati Card", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
                             }
 
                             Button(
                                 onClick = {
-                                    val (bitmap, text) = SampleCards.generateTechCardBitmap()
-                                    viewModel.processCardImage(bitmap, text)
+                                    imageCapture.captureBitmap(
+                                        context = context,
+                                        onCaptured = { bitmap -> viewModel.processCardImage(bitmap) },
+                                        onError = {
+                                            Toast.makeText(
+                                                context,
+                                                "Couldn't capture photo. Please try again.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
                                 },
+                                enabled = cameraPermissionState.status.isGranted && !state.isProcessing,
                                 modifier = Modifier.testTag("capture_card_camera_button"),
                                 shape = CircleShape,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -510,6 +533,7 @@ fun ExtractedCardReviewSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)

@@ -11,6 +11,8 @@ import com.example.data.local.LeadEntity
 import com.example.data.model.LeadSource
 import com.example.data.model.LeadStatus
 import com.example.data.repository.LeadRepository
+import com.example.util.NdefPayload
+import com.example.util.NdefPayloadParser
 import com.example.util.VCardUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,48 +45,45 @@ class NfcViewModel(application: Application) : AndroidViewModel(application) {
 
     fun processNdefMessage(ndefMessage: NdefMessage) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isProcessing = true)
+            _uiState.value = _uiState.value.copy(isProcessing = true, errorMessage = null)
 
-            val records = ndefMessage.records
-            var vCardText = ""
-            var urlText = ""
-
-            for (record in records) {
-                val payload = String(record.payload, Charsets.UTF_8)
-                if (payload.contains("BEGIN:VCARD")) {
-                    vCardText = payload
-                    break
-                } else if (payload.startsWith("http") || payload.startsWith("www")) {
-                    urlText = payload
+            when (val payload = NdefPayloadParser.parse(ndefMessage)) {
+                is NdefPayload.VCard -> {
+                    val parsedLead = VCardUtils.parseVCardToLead(payload.text)
+                    _uiState.value = _uiState.value.copy(
+                        isProcessing = false,
+                        readLead = parsedLead,
+                        statusMessage = "vCard Contact Read Successfully!"
+                    )
+                }
+                is NdefPayload.Url -> {
+                    val lead = LeadEntity(
+                        fullName = "NFC Web Contact",
+                        website = payload.url,
+                        source = LeadSource.NFC,
+                        notes = "Captured from NFC NDEF URL: ${payload.url}"
+                    )
+                    _uiState.value = _uiState.value.copy(
+                        isProcessing = false,
+                        readLead = lead,
+                        statusMessage = "NFC Web Link Read Successfully!"
+                    )
+                }
+                NdefPayload.Unsupported -> {
+                    _uiState.value = _uiState.value.copy(
+                        isProcessing = false,
+                        errorMessage = "Unrecognized NFC NDEF Format"
+                    )
                 }
             }
-
-            if (vCardText.isNotBlank()) {
-                val parsedLead = VCardUtils.parseVCardToLead(vCardText)
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    readLead = parsedLead,
-                    statusMessage = "vCard Contact Read Successfully!"
-                )
-            } else if (urlText.isNotBlank()) {
-                val lead = LeadEntity(
-                    fullName = "NFC Web Contact",
-                    website = urlText,
-                    source = LeadSource.NFC,
-                    notes = "Captured from NFC NDEF URL: $urlText"
-                )
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    readLead = lead,
-                    statusMessage = "NFC Web Link Read Successfully!"
-                )
-            } else {
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    errorMessage = "Unrecognized NFC NDEF Format"
-                )
-            }
         }
+    }
+
+    fun onTagWithoutContactData() {
+        _uiState.value = _uiState.value.copy(
+            isProcessing = false,
+            errorMessage = "This NFC tag does not contain contact data"
+        )
     }
 
     fun writeProfileToNfcTag(tag: Tag, vCardPayload: String) {

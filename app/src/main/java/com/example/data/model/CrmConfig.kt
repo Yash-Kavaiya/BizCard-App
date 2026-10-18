@@ -4,6 +4,7 @@ data class CrmConfig(
     val googleSheetsWebhookUrl: String = "",
     val hubspotApiKey: String = "",
     val salesforceApiKey: String = "",
+    val salesforceInstanceUrl: String = "",
     val zohoApiKey: String = "",
     val customWebhookUrl: String = "",
     val customWebhookAuthHeader: String = "Authorization",

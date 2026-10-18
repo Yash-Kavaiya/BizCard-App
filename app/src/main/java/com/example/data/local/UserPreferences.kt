@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.BuildConfig
 import com.example.data.model.PersonalCard
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -28,16 +29,17 @@ class UserPreferences(private val context: Context) {
     }
 
     val personalCardFlow: Flow<PersonalCard> = context.dataStore.data.map { prefs ->
+        val d = if (BuildConfig.DEBUG) PersonalCard.SAMPLE else PersonalCard()
         PersonalCard(
-            name = prefs[KEY_NAME] ?: "Alex Morgan",
-            title = prefs[KEY_TITLE] ?: "VP of Business Development",
-            company = prefs[KEY_COMPANY] ?: "Apex Innovations Inc.",
-            email = prefs[KEY_EMAIL] ?: "alex.morgan@apexinnovations.com",
-            phone = prefs[KEY_PHONE] ?: "+1 (555) 234-5678",
-            website = prefs[KEY_WEBSITE] ?: "https://apexinnovations.com",
-            linkedIn = prefs[KEY_LINKEDIN] ?: "linkedin.com/in/alexmorgan-biz",
-            address = prefs[KEY_ADDRESS] ?: "742 Evergreen Terrace, San Francisco, CA",
-            bio = prefs[KEY_BIO] ?: "Building strategic enterprise partnerships & AI integrations."
+            name = prefs[KEY_NAME] ?: d.name,
+            title = prefs[KEY_TITLE] ?: d.title,
+            company = prefs[KEY_COMPANY] ?: d.company,
+            email = prefs[KEY_EMAIL] ?: d.email,
+            phone = prefs[KEY_PHONE] ?: d.phone,
+            website = prefs[KEY_WEBSITE] ?: d.website,
+            linkedIn = prefs[KEY_LINKEDIN] ?: d.linkedIn,
+            address = prefs[KEY_ADDRESS] ?: d.address,
+            bio = prefs[KEY_BIO] ?: d.bio
         )
     }
 

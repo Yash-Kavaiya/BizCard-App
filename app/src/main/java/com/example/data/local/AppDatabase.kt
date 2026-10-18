@@ -42,7 +42,7 @@ class Converters {
     }
 }
 
-@Database(entities = [LeadEntity::class], version = 1, exportSchema = false)
+@Database(entities = [LeadEntity::class], version = 1, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -59,7 +59,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "bizcard_lead_database"
                 )
-                .fallbackToDestructiveMigration()
+                // Upgrades must ship a Migration so users never lose saved leads.
+                .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                 .build()
                 INSTANCE = instance
                 instance

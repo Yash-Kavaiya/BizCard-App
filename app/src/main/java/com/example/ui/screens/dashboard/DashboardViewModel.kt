@@ -3,6 +3,7 @@ package com.example.ui.screens.dashboard
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.BuildConfig
 import com.example.data.local.LeadEntity
 import com.example.data.model.AiCrmInsights
 import com.example.data.model.LeadSource
@@ -42,7 +43,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         viewModelScope.launch {
-            repository.seedInitialDataIfEmpty()
+            if (BuildConfig.DEBUG) {
+                repository.seedInitialDataIfEmpty()
+            }
             allLeads.collect { leads ->
                 calculateMetrics(leads)
             }

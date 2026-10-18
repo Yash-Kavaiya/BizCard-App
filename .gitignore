@@ -14,5 +14,19 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Secrets: never commit these. CI injects them from GitHub Actions secrets.
 .env
-debug.keystore
+.env.*
+!.env.example
+*.jks
+*.keystore
+keystore.properties
+play-service-account*.json
+
+# Build outputs
+/app/release/
+/app/debug/
+*.apk
+*.aab
+/dist/

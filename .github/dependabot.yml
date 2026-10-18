@@ -1,0 +1,33 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      androidx-compose:
+        patterns: ["androidx.compose*"]
+      androidx:
+        patterns: ["androidx.*"]
+        exclude-patterns: ["androidx.compose*"]
+      kotlin:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "org.jetbrains.kotlinx*"
+          - "com.google.devtools.ksp"
+      networking:
+        patterns: ["com.squareup.*"]
+      testing:
+        patterns:
+          - "junit:*"
+          - "org.robolectric*"
+          - "io.github.takahirom.roborazzi*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

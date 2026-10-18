@@ -3,7 +3,6 @@ package com.example
 import android.content.Intent
 import android.nfc.NdefMessage
 import android.nfc.NfcAdapter
-import android.nfc.Tag
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -25,8 +24,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Let the bottom NavigationBar color extend behind the gesture/3-button nav bar.
+            window.isNavigationBarContrastEnforced = false
+        }
 
-        handleNfcIntent(intent)
+        // On recreation the launch intent was already handled before the config change.
+        if (savedInstanceState == null) {
+            handleNfcIntent(intent)
+        }
 
         setContent {
             MyApplicationTheme {
@@ -60,19 +66,11 @@ class MainActivity : ComponentActivity() {
                 intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
             }
 
-            if (rawMsgs != null && rawMsgs.isNotEmpty()) {
-                val msg = rawMsgs[0] as NdefMessage
-                nfcViewModel.processNdefMessage(msg)
+            val message = rawMsgs?.firstOrNull() as? NdefMessage
+            if (message != null) {
+                nfcViewModel.processNdefMessage(message)
             } else {
-                @Suppress("DEPRECATION")
-                val tag: Tag? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
-                } else {
-                    intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
-                }
-                if (tag != null) {
-                    nfcViewModel.simulateNfcTap()
-                }
+                nfcViewModel.onTagWithoutContactData()
             }
         }
     }

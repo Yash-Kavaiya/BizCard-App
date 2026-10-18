@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 
 plugins {
   alias(libs.plugins.android.application)
@@ -9,6 +10,18 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+// CI passes -PversionCode=<n> -PversionName=<x.y.z>; local builds fall back to these defaults.
+val appVersionCode = providers.gradleProperty("versionCode").map(String::toInt).getOrElse(1)
+val appVersionName = providers.gradleProperty("versionName").getOrElse("1.0.0")
+
+// Release signing is driven entirely by environment variables so no secret ever lives in the repo.
+// When no keystore is available (PR builds, local dev) the release variant is built unsigned.
+val releaseKeystore =
+  (providers.environmentVariable("KEYSTORE_PATH").orNull ?: "${rootDir}/my-upload-key.jks")
+    .let { file(it) }
+    .takeIf { it.exists() }
+val debugKeystore = rootProject.file("debug.keystore").takeIf { it.exists() }
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -17,36 +30,44 @@ android {
     applicationId = "com.aistudio.bizcardai.leadtap"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = appVersionCode
+    versionName = appVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+    if (releaseKeystore != null) {
+      create("release") {
+        storeFile = releaseKeystore
+        storePassword = providers.environmentVariable("STORE_PASSWORD").orNull
+        keyAlias = providers.environmentVariable("KEY_ALIAS").getOrElse("upload")
+        keyPassword = providers.environmentVariable("KEY_PASSWORD").orNull
+      }
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    if (debugKeystore != null) {
+      create("debugConfig") {
+        storeFile = debugKeystore
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
   buildTypes {
     release {
-      isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfigs.findByName("release")?.let { signingConfig = it }
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      applicationIdSuffix = ".debug"
+      versionNameSuffix = "-debug"
+      enableUnitTestCoverage = true
+      signingConfigs.findByName("debugConfig")?.let { signingConfig = it }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -56,10 +77,27 @@ android {
     compose = true
     buildConfig = true
   }
+  lint {
+    abortOnError = true
+    checkReleaseBuilds = true
+    htmlReport = true
+    sarifReport = true
+  }
+  packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
   testOptions { unitTests { isIncludeAndroidResources = true } }
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
+  }
+}
+
+ksp { arg("room.schemaLocation", "$projectDir/schemas") }
+
+// Robolectric loads classes through its own class loader; without this, JaCoCo reports 0% coverage.
+tasks.withType<Test>().configureEach {
+  extensions.findByType(JacocoTaskExtension::class.java)?.apply {
+    isIncludeNoLocationClasses = true
+    excludes = listOf("jdk.internal.*")
   }
 }
 
@@ -100,7 +138,10 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
-  implementation(libs.firebase.ai)
+  // Uncomment BOTH to move Gemini calls to Firebase AI Logic protected by App Check
+  // (requires app/google-services.json):
+  // implementation(libs.firebase.ai)
+  // implementation(libs.firebase.appcheck.recaptcha)
   // Uncomment to use Firestore:
   // implementation(libs.firebase.firestore)
 
@@ -110,11 +151,11 @@ dependencies {
   // implementation(libs.androidx.credentials)
   // implementation(libs.androidx.credentials.play.services)
   // implementation(libs.googleid)
-  implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
+  // Uncomment to log HTTP traffic in debug builds only (never ship it in release):
+  // debugImplementation(libs.logging.interceptor)
+  implementation(libs.moshi)
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
@@ -133,6 +174,7 @@ dependencies {
   androidTestImplementation(libs.androidx.espresso.core)
   androidTestImplementation(libs.androidx.junit)
   androidTestImplementation(libs.androidx.runner)
+  androidTestImplementation(libs.kotlinx.coroutines.test)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
