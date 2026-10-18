@@ -8,11 +8,12 @@ QR codes, and export leads to CSV, vCard or CRM integrations.
 |---|---|
 | Application ID | `com.aistudio.bizcardai.leadtap` (debug builds: `.debug` suffix) |
 | Min / target SDK | 24 / 36 |
-| Toolchain | AGP 9.1, Gradle 9.3.1 (wrapper), JDK 17, Kotlin 2.2 |
+| Toolchain | AGP 9.1, Gradle 9.3.1 (wrapper), JDK 21, Kotlin 2.2 |
 
 ## Local setup
 
-1. Install Android Studio (latest stable) with JDK 17.
+1. Install Android Studio (latest stable). Its bundled JDK 21 is required because Robolectric
+   tests against Android SDK 36 need Java 21.
 2. Copy `.env.example` to `.env` and set your key:
    ```
    GEMINI_API_KEY=your-key

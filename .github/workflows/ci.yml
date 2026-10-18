@@ -14,7 +14,8 @@ permissions:
   contents: read
 
 env:
-  JAVA_VERSION: "17"
+  # Robolectric needs Java 21 to run tests against Android SDK 35+.
+  JAVA_VERSION: "21"
 
 jobs:
   build:
