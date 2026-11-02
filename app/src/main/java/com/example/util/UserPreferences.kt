@@ -9,7 +9,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class UserPreferences(context: Context) {
+/**
+ * Process-wide preferences store. Use [UserPreferences.get] so every screen, ViewModel and
+ * background worker observes the same [StateFlow]s; separate instances would hold stale copies.
+ */
+class UserPreferences private constructor(context: Context) {
+
+    companion object {
+        @Volatile
+        private var instance: UserPreferences? = null
+
+        fun get(context: Context): UserPreferences =
+            instance ?: synchronized(this) {
+                instance ?: UserPreferences(context.applicationContext).also { instance = it }
+            }
+    }
 
     private val prefs: SharedPreferences = context.getSharedPreferences("user_card_prefs", Context.MODE_PRIVATE)
 

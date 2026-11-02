@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import com.example.data.local.AppDatabase
 import com.example.data.local.LeadEntity
-import com.example.data.local.UserPreferences
+import com.example.data.sync.AutoExportWorker
 import com.example.data.model.AiCrmInsights
 import com.example.data.model.ExtractedCardData
 import com.example.data.model.LeadSource
@@ -20,7 +20,6 @@ class LeadRepository(private val context: Context) {
     private val db = AppDatabase.getDatabase(context)
     private val dao = db.leadDao()
     private val geminiEngine = GeminiExtractionEngine(context)
-    val preferences = UserPreferences(context)
 
     val allLeads: Flow<List<LeadEntity>> = dao.getAllLeads()
     val totalLeadCount: Flow<Int> = dao.getLeadCount()
@@ -35,7 +34,12 @@ class LeadRepository(private val context: Context) {
 
     suspend fun getLeadById(id: Long): LeadEntity? = dao.getLeadById(id)
 
-    suspend fun insertLead(lead: LeadEntity): Long = dao.insertLead(lead)
+    /** Saves a new lead and, if enabled, queues it for auto-export to the configured CRMs. */
+    suspend fun insertLead(lead: LeadEntity): Long {
+        val id = dao.insertLead(lead)
+        AutoExportWorker.enqueueIfEnabled(context, id)
+        return id
+    }
 
     suspend fun updateLead(lead: LeadEntity) = dao.updateLead(lead)
 

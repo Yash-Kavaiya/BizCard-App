@@ -10,6 +10,15 @@ QR codes, and export leads to CSV, vCard or CRM integrations.
 | Min / target SDK | 24 / 36 |
 | Toolchain | AGP 9.1, Gradle 9.3.1 (wrapper), JDK 21, Kotlin 2.2 |
 
+## Auto-export
+
+When **Export & CRM Integrations → Auto-Export New Leads** is on, every new lead (scanned,
+NFC-tapped, QR or added by hand) is queued with WorkManager (`AutoExportWorker`) and pushed to each
+configured target: Google Sheets, HubSpot, Salesforce, Zoho and the custom webhook. The job waits
+for network, so cards captured offline export once the device reconnects. Network errors are retried
+with exponential backoff, up to 5 attempts. HTTP errors such as a bad token are logged and not
+retried.
+
 ## Local setup
 
 1. Install Android Studio (latest stable). Its bundled JDK 21 is required because Robolectric

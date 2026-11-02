@@ -20,7 +20,7 @@ data class MyCardUiState(
 
 class MyCardViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val prefs = UserPreferences(application.applicationContext)
+    private val prefs = UserPreferences.get(application)
 
     private val _uiState = MutableStateFlow(MyCardUiState())
     val uiState: StateFlow<MyCardUiState> = _uiState.asStateFlow()

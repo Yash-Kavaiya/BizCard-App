@@ -97,6 +97,29 @@ object ExportCrmService {
         }
     }
 
+    /**
+     * Opens all [leads] as one vCard file in the device's Contacts app, which imports them in a
+     * single step. Returns false when no installed app can import vCards.
+     */
+    suspend fun importVcfIntoContacts(context: Context, leads: List<LeadEntity>): Boolean {
+        val uri = withContext(Dispatchers.IO) {
+            val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+            val file = File(exportDir, "LeadTap_Import.vcf")
+            file.writeText(generateVcfContent(leads))
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "text/x-vcard")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return try {
+            context.startActivity(intent)
+            true
+        } catch (e: android.content.ActivityNotFoundException) {
+            false
+        }
+    }
+
     fun generateCsvContent(leads: List<LeadEntity>): String {
         val sb = StringBuilder()
         sb.append("Full Name,Company,Job Title,Primary Phone,Secondary Phone,Primary Email,Website,LinkedIn,Industry,Address,Notes,Tags,Status,Source,Confidence,Created Date\n")
