@@ -10,4 +10,12 @@ data class CrmConfig(
     val customWebhookAuthHeader: String = "Authorization",
     val customWebhookApiKey: String = "",
     val autoExportEnabled: Boolean = false
-)
+) {
+    /** True when at least one push target is configured (mirrors syncLeadToAllActiveIntegrations). */
+    fun hasAnyIntegration(): Boolean =
+        googleSheetsWebhookUrl.isNotBlank() ||
+            hubspotApiKey.isNotBlank() ||
+            salesforceApiKey.isNotBlank() ||
+            zohoApiKey.isNotBlank() ||
+            customWebhookUrl.isNotBlank()
+}

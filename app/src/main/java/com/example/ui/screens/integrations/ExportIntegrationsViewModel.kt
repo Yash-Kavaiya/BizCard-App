@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
 import com.example.data.local.LeadEntity
 import com.example.data.model.CrmConfig
-import com.example.util.ContactsHelper
 import com.example.util.ExportCrmService
 import com.example.util.UserPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +25,7 @@ data class ExportIntegrationsUiState(
 
 class ExportIntegrationsViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val userPreferences = UserPreferences(application)
+    private val userPreferences = UserPreferences.get(application)
     private val leadDao = AppDatabase.getDatabase(application).leadDao()
 
     private val _uiState = MutableStateFlow(ExportIntegrationsUiState())
@@ -136,8 +135,13 @@ class ExportIntegrationsViewModel(application: Application) : AndroidViewModel(a
                 _uiState.value = _uiState.value.copy(errorMessage = "No leads in database.")
                 return@launch
             }
-            for (lead in leads) {
-                ContactsHelper.addToDeviceContacts(context, lead)
+            // One vCard import instead of one insert screen per lead (rapid-fire intents only ever
+            // showed the last contact).
+            val opened = ExportCrmService.importVcfIntoContacts(context, leads)
+            _uiState.value = if (opened) {
+                _uiState.value.copy(statusMessage = "Importing ${leads.size} contact(s) into Contacts…")
+            } else {
+                _uiState.value.copy(errorMessage = "No Contacts app found that can import vCards. Use \"Export VCF\" instead.")
             }
         }
     }

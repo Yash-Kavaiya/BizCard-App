@@ -52,6 +52,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -237,8 +238,8 @@ fun LeadDetailScreen(
                 // Export & CRM Integration Card
                 val cardShape = RoundedCornerShape(22.dp)
                 val scope = rememberCoroutineScope()
-                val userPrefs = remember { UserPreferences(context) }
-                val crmConfig = userPrefs.getCrmConfig()
+                val userPrefs = remember { UserPreferences.get(context) }
+                val crmConfig by userPrefs.crmConfigFlow.collectAsStateWithLifecycle()
 
                 Card(
                     modifier = Modifier
@@ -331,7 +332,13 @@ fun LeadDetailScreen(
                                             Toast.makeText(context, "No active CRM API keys saved in Settings.", Toast.LENGTH_LONG).show()
                                         } else {
                                             val successCount = results.count { it.isSuccess }
-                                            Toast.makeText(context, "Synced lead to $successCount CRM integration(s)!", Toast.LENGTH_LONG).show()
+                                            val firstError = results.firstNotNullOfOrNull { it.exceptionOrNull()?.message }
+                                            val msg = if (firstError == null) {
+                                                "Synced lead to $successCount integration(s)!"
+                                            } else {
+                                                "Synced $successCount of ${results.size} integration(s). Failed: $firstError"
+                                            }
+                                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 },
